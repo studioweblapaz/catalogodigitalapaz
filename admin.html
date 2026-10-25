@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - Catálogo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background: #f0f2f5; padding: 1rem; padding-bottom: 80px; }
+        .header { background: #2c3e50; color: white; padding: 1.5rem; border-radius: 10px; margin-bottom: 1rem; }
+        .header h1 { font-size: 1.3rem; margin-bottom: 1rem; }
+        .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .tab-btn { flex: 1; min-width: 100px; padding: 0.8rem; border: none; background: white; color: #2c3e50; border-radius: 8px; font-weight: 600; cursor: pointer; font-family: 'Poppins', sans-serif; }
+        .tab-btn.active { background: #0047AB; color: white; } /* Ajustado al color principal de tu catálogo */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.9rem; color: #2c3e50; }
+        .form-group input, .form-group textarea, .form-group select { width: 100%; padding: 0.8rem; border: 1px solid #ddd; border-radius: 8px; font-family: 'Poppins', sans-serif; font-size: 0.9rem; }
+        .form-group input[type="color"] { height: 45px; padding: 0.2rem; cursor: pointer; }
+        .btn-save { background: #25d366; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 8px; font-weight: 700; cursor: pointer; width: 100%; font-size: 1rem; }
+        .btn-save:hover { background: #128c7e; }
+        .btn-save:disabled { background: #95a5a6; cursor: not-allowed; }
+
+        .product-card { background: white; padding: 1rem; border-radius: 10px; display: flex; align-items: center; gap: 1rem; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 0.8rem; }
+        .product-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; background: #eee; }
+        .product-info { flex: 1; }
+        .product-name { font-weight: 700; color: #2c3e50; font-size: 0.95rem; }
+        .product-price { color: #0047AB; font-weight: 600; font-size: 0.9rem; }
+        .product-category { font-size: 0.75rem; color: #666; text-transform: uppercase; }
+        
+        .toggle-switch { position: relative; width: 50px; height: 26px; flex-shrink: 0; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #e74c3c; transition: 0.3s; border-radius: 26px; }
+        .toggle-slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; }
+        input:checked + .toggle-slider { background-color: #25d366; }
+        input:checked + .toggle-slider:before { transform: translateX(24px); }
+        
+        .btn-delete { background: #e74c3c; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; margin-left: 0.5rem; }
+        .btn-edit { background: #3498db; color: white; border: none; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+        
+        .login-screen { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: #2c3e50; display: flex; align-items: center; justify-content: center; z-index: 1000; }
+        .login-box { background: white; padding: 2rem; border-radius: 15px; text-align: center; width: 90%; max-width: 350px; }
+        .login-box input { padding: 0.8rem; border: 2px solid #ddd; border-radius: 8px; width: 100%; margin: 1rem 0; font-size: 1rem; }
+        .hidden { display: none !important; }
+        .loading { text-align: center; padding: 2rem; color: #666; }
+    </style>
+    <link rel="manifest" href="manifest-admin.json">
+    <meta name="theme-color" content="#2c3e50">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
+        }
+    </script>
+</head>
+<body>
+    <!-- PANTALLA DE LOGIN -->
+    <div class="login-screen" id="login-screen">
+        <div class="login-box">
+            <h2>🔐 Panel de Control</h2>
+            <input type="password" id="password-input" placeholder="Contraseña">
+            <button class="btn-save" onclick="checkPassword()">Entrar</button>
+            <p id="error-msg" style="color: #e74c3c; margin-top: 1rem; display: none;">Contraseña incorrecta</p>
+        </div>
+    </div>
+
+    <!-- PANEL PRINCIPAL -->
+    <div id="admin-panel" class="hidden">
+        <div class="header">
+            <h1>⚙️ Gestión del Catálogo</h1>
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('productos')">📦 Productos</button>
+                <button class="tab-btn" onclick="switchTab('config')">⚙️ Configuración</button>
+            </div>
+        </div>
+
+        <!-- TAB PRODUCTOS (Ahora es la pestaña por defecto) -->
+        <div id="tab-productos" class="tab-content active">
+            <div style="background: white; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; max-width: 800px; margin-left: auto; margin-right: auto;">
+                <h3 style="margin-bottom: 1rem;">Agregar / Editar Producto</h3>
+                <input type="hidden" id="edit-product-id">
+                <div class="form-group">
+                    <label>Nombre del producto</label>
+                    <input type="text" id="prod-name" placeholder="Ej: Nombre del producto">
+                </div>
+                <div class="form-group">
+                    <label>Descripción Corta</label>
+                    <textarea id="prod-desc" rows="2" placeholder="Ej: Añade una descripción corta."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Descripción Detallada (para la ventana emergente)</label>
+                    <textarea id="prod-detailed-desc" rows="4" placeholder="Ej: Añade una descripción larga."></textarea>
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Precio ($)</label>
+                        <input type="number" id="prod-price" placeholder="850">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Categoría</label>
+                        <input type="text" id="prod-category" placeholder="Ej: Añade una categoría">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Foto del producto</label>
+                    <input type="file" id="prod-image-file" accept="image/*">
+                    <img id="prod-image-preview" style="max-width: 100px; margin-top: 0.5rem; border-radius: 8px; display: none;">
+                    <input type="hidden" id="prod-image-url">
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" id="prod-available" checked style="width: auto;"> Disponible
+                    </label>
+                </div>
+                <button class="btn-save" id="btn-save-product" onclick="saveProduct()">Guardar Producto</button>
+                <button class="btn-save" id="btn-cancel-edit" onclick="cancelEdit()" style="background: #95a5a6; margin-top: 0.5rem; display: none;">Cancelar Edición</button>
+            </div>
+            
+            <h3 style="margin-bottom: 1rem; text-align: center;">Mis Productos</h3>
+            <div id="products-container" style="max-width: 800px; margin: 0 auto;"></div>
+        </div>
+
+        <!-- TAB CONFIGURACIÓN -->
+        <div id="tab-config" class="tab-content">
+            <div style="background: white; padding: 1.5rem; border-radius: 10px; max-width: 800px; margin: 0 auto;">
+                <h3 style="margin-bottom: 1rem;">Apariencia de la Tienda</h3>
+                <div class="form-group">
+                    <label>Logo de la Tienda (imagen)</label>
+                    <input type="file" id="cfg-logo-file" accept="image/*">
+                    <img id="cfg-logo-preview" style="max-width: 120px; margin-top: 0.5rem; border-radius: 8px; display: none; background: #eee; padding: 5px;">
+                    <input type="hidden" id="cfg-logo-url">
+                    <p style="font-size: 0.8rem; color: #666; margin-top: 0.3rem;">Recomendado: imagen cuadrada, fondo transparente (PNG)</p>
+                </div>
+                <div class="form-group">
+                    <label>Emoji/Ícono del header (opcional)</label>
+                    <input type="text" id="cfg-emoji" placeholder="Ej: 🌸, 💐, 🎁" maxlength="4">
+                </div>
+                <div class="form-group">
+                    <label>Nombre de la tienda</label>
+                    <input type="text" id="cfg-name" placeholder="Mi Tienda">
+                </div>
+                <div class="form-group">
+                    <label>Eslogan / Subtítulo</label>
+                    <input type="text" id="cfg-tagline" placeholder="Los mejores arreglos de la ciudad">
+                </div>
+                <div style="display: flex; gap: 1rem;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>Color Principal</label>
+                        <input type="color" id="cfg-primary" value="#0047AB">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>Color Secundario</label>
+                        <input type="color" id="cfg-secondary" value="#2c3e50">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Color de Fondo</label>
+                    <input type="color" id="cfg-background" value="#f8f9fa">
+                </div>
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #eee;">
+                <h3 style="margin-bottom: 1rem;">Información de Contacto</h3>
+                <div class="form-group">
+                    <label>Dirección</label>
+                    <input type="text" id="cfg-address" placeholder="Ej: Av. Principal #123, Ciudad">
+                </div>
+                <div class="form-group">
+                    <label>Horario</label>
+                    <input type="text" id="cfg-hours" placeholder="Ej: Lun-Dom: 12:00 - 22:00">
+                </div>
+                <div class="form-group">
+                    <label>Teléfono / WhatsApp</label>
+                    <input type="text" id="cfg-phone" placeholder="Ej: 61 2443 3992">
+                </div>
+                <button class="btn-save" onclick="saveConfig()">💾 Guardar Toda la Configuración</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <script>
+        // ⚙️ 1. CONFIGURACIÓN DE FIREBASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAgryOgzuaKQw8s2APP4ezc4k6igHRUmM",
+            authDomain: "tienda-digital-32a30.firebaseapp.com",
+            projectId: "tienda-digital-32a30",
+            storageBucket: "tienda-digital-32a30.firebasestorage.app",
+            messagingSenderId: "989141190509",
+            appId: "1:989141190509:web:08dcb840d3c5ed79f47c64"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        // ⚙️ 2. CONFIGURACIÓN DE CLOUDINARY
+        const CLOUDINARY_CLOUD_NAME = "oxznb5kn";
+        const CLOUDINARY_UPLOAD_PRESET = "Tienda Digital";
+
+        // ⚙️ 3. CONFIGURACIÓN DEL PROYECTO
+        const RESTAURANT_NAME = "Tienda Digital"; 
+        const ADMIN_PASSWORD = "admin123";
+
+        let products = [];
+
+        function checkPassword() {
+            if (document.getElementById('password-input').value === ADMIN_PASSWORD) {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('admin-panel').classList.remove('hidden');
+                loadConfig();
+                loadProducts();
+            } else {
+                document.getElementById('error-msg').style.display = 'block';
+            }
+        }
+        document.getElementById('password-input').addEventListener('keypress', (e) => { if (e.key === 'Enter') checkPassword(); });
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tab}`).classList.add('active');
+        }
+
+        function loadConfig() {
+            db.collection('config').doc('tema').onSnapshot((doc) => {
+                if (doc.exists) {
+                    const data = doc.data();
+                    document.getElementById('cfg-name').value = data.restaurantName || '';
+                    document.getElementById('cfg-tagline').value = data.tagline || '';
+                    document.getElementById('cfg-emoji').value = data.emoji || '🍽️';
+                    document.getElementById('cfg-primary').value = data.primaryColor || '#0047AB';
+                    document.getElementById('cfg-secondary').value = data.secondaryColor || '#2c3e50';
+                    document.getElementById('cfg-background').value = data.backgroundColor || '#f8f9fa';
+                    document.getElementById('cfg-address').value = data.address || '';
+                    document.getElementById('cfg-hours').value = data.hours || '';
+                    document.getElementById('cfg-phone').value = data.phone || '';
+                    document.getElementById('cfg-logo-url').value = data.logo || '';
+                    if (data.logo) {
+                        document.getElementById('cfg-logo-preview').src = data.logo;
+                        document.getElementById('cfg-logo-preview').style.display = 'block';
+                    }
+                }
+            });
+        }
+
+        document.getElementById('cfg-logo-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('cfg-logo-preview').src = e.target.result;
+                    document.getElementById('cfg-logo-preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        async function saveConfig() {
+            const btn = event.target;
+            btn.textContent = 'Guardando...';
+            btn.disabled = true;
+            const fileInput = document.getElementById('cfg-logo-file');
+            let logoUrl = document.getElementById('cfg-logo-url').value;
+            try {
+                if (fileInput.files.length > 0) {
+                    logoUrl = await uploadToCloudinary(fileInput.files[0]);
+                }
+                await db.collection('config').doc('tema').set({
+                    restaurantName: document.getElementById('cfg-name').value,
+                    tagline: document.getElementById('cfg-tagline').value,
+                    emoji: document.getElementById('cfg-emoji').value || '🍽️',
+                    primaryColor: document.getElementById('cfg-primary').value,
+                    secondaryColor: document.getElementById('cfg-secondary').value,
+                    backgroundColor: document.getElementById('cfg-background').value,
+                    address: document.getElementById('cfg-address').value,
+                    hours: document.getElementById('cfg-hours').value,
+                    phone: document.getElementById('cfg-phone').value,
+                    logo: logoUrl
+                }, { merge: true });
+                btn.textContent = '💾 Guardar Toda la Configuración';
+                btn.disabled = false;
+                alert('✅ Configuración guardada. El catálogo se actualiza al instante.');
+            } catch (error) {
+                console.error(error);
+                btn.textContent = '💾 Guardar Toda la Configuración';
+                btn.disabled = false;
+                alert('Error al guardar: ' + error.message);
+            }
+        }
+
+        async function uploadToCloudinary(file) {
+            const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+            const response = await fetch(url, { method: "POST", body: formData });
+            const data = await response.json();
+            if (data.error) throw new Error(data.error.message);
+            return data.secure_url;
+        }
+
+        function loadProducts() {
+            db.collection('productos').where('restaurant', '==', RESTAURANT_NAME).onSnapshot((snapshot) => {
+                products = [];
+                snapshot.forEach((doc) => products.push({ id: doc.id, ...doc.data() }));
+                renderProducts();
+            });
+        }
+
+        function renderProducts() {
+            const container = document.getElementById('products-container');
+            container.innerHTML = products.length === 0 ? '<p class="loading">No hay productos aún. ¡Agrega el primero!</p>' : '';
+            products.forEach(p => {
+                const div = document.createElement('div');
+                div.className = 'product-card';
+                div.innerHTML = `
+                    <img src="${p.image || 'https://via.placeholder.com/60?text=Foto'}" class="product-img" onerror="this.src='https://via.placeholder.com/60?text=Error'">
+                    <div class="product-info">
+                        <div class="product-name">${p.name}</div>
+                        <div class="product-category">${p.category}</div>
+                        <div class="product-price">$${p.price}</div>
+                    </div>
+                    <label class="toggle-switch">
+                        <input type="checkbox" ${p.available ? 'checked' : ''} onchange="toggleProduct('${p.id}', this.checked)">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <button class="btn-edit" onclick="editProduct('${p.id}')">✏️</button>
+                    <button class="btn-delete" onclick="deleteProduct('${p.id}')">🗑️</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        document.getElementById('prod-image-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('prod-image-preview').src = e.target.result;
+                    document.getElementById('prod-image-preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        async function saveProduct() {
+            const btn = document.getElementById('btn-save-product');
+            const editId = document.getElementById('edit-product-id').value;
+            const name = document.getElementById('prod-name').value;
+            const desc = document.getElementById('prod-desc').value;
+            const detailedDesc = document.getElementById('prod-detailed-desc').value;
+            const price = parseFloat(document.getElementById('prod-price').value);
+            const category = document.getElementById('prod-category').value;
+            const available = document.getElementById('prod-available').checked;
+            const fileInput = document.getElementById('prod-image-file');
+            let imageUrl = document.getElementById('prod-image-url').value;
+
+            if (!name || !price || !category) { alert('Por favor completa nombre, precio y categoría.'); return; }
+
+            btn.textContent = 'Subiendo y Guardando...';
+            btn.disabled = true;
+
+            try {
+                if (fileInput.files.length > 0) {
+                    imageUrl = await uploadToCloudinary(fileInput.files[0]);
+                } else if (!imageUrl) {
+                    imageUrl = 'https://via.placeholder.com/400x300?text=Sin+Imagen';
+                }
+
+                const productData = {
+                    restaurant: RESTAURANT_NAME, 
+                    name, 
+                    description: desc, 
+                    detailedDescription: detailedDesc,
+                    price, 
+                    category, 
+                    image: imageUrl, 
+                    available,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                if (editId) {
+                    await db.collection('productos').doc(editId).update(productData);
+                } else {
+                    productData.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+                    await db.collection('productos').add(productData);
+                }
+
+                cancelEdit();
+                alert('✅ Producto guardado correctamente.');
+            } catch (error) {
+                console.error(error);
+                alert('Error al guardar: ' + error.message);
+            }
+
+            btn.textContent = 'Guardar Producto';
+            btn.disabled = false;
+        }
+
+        function editProduct(id) {
+            const p = products.find(x => x.id === id);
+            if (!p) return;
+            document.getElementById('edit-product-id').value = p.id;
+            document.getElementById('prod-name').value = p.name;
+            document.getElementById('prod-desc').value = p.description || '';
+            document.getElementById('prod-detailed-desc').value = p.detailedDescription || '';
+            document.getElementById('prod-price').value = p.price;
+            document.getElementById('prod-category').value = p.category;
+            document.getElementById('prod-available').checked = p.available;
+            document.getElementById('prod-image-url').value = p.image || '';
+            if (p.image) {
+                document.getElementById('prod-image-preview').src = p.image;
+                document.getElementById('prod-image-preview').style.display = 'block';
+            }
+            document.getElementById('btn-save-product').textContent = 'Actualizar Producto';
+            document.getElementById('btn-cancel-edit').style.display = 'block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function cancelEdit() {
+            document.getElementById('edit-product-id').value = '';
+            document.getElementById('prod-name').value = '';
+            document.getElementById('prod-desc').value = '';
+            document.getElementById('prod-detailed-desc').value = '';
+            document.getElementById('prod-price').value = '';
+            document.getElementById('prod-category').value = '';
+            document.getElementById('prod-available').checked = true;
+            document.getElementById('prod-image-file').value = '';
+            document.getElementById('prod-image-url').value = '';
+            document.getElementById('prod-image-preview').style.display = 'none';
+            document.getElementById('btn-save-product').textContent = 'Guardar Producto';
+            document.getElementById('btn-cancel-edit').style.display = 'none';
+        }
+
+        async function toggleProduct(id, isAvailable) {
+            await db.collection('productos').doc(id).update({ available: isAvailable });
+        }
+
+        async function deleteProduct(id) {
+            if (confirm('¿Eliminar este producto permanentemente?')) {
+                await db.collection('productos').doc(id).delete();
+            }
+        }
+    </script>
+    
+    <!-- Botón de Instalación PWA para el Admin -->
+    <button id="install-btn-admin" style="display: none; position: fixed; bottom: 20px; right: 20px; background: #2c3e50; color: white; border: none; padding: 1rem 1.5rem; border-radius: 50px; font-weight: 700; font-size: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); cursor: pointer; z-index: 9999; font-family: 'Poppins', sans-serif;">
+        📲 Instalar Panel
+    </button>
+
+    <script>
+        let deferredPromptAdmin;
+        const installBtnAdmin = document.getElementById('install-btn-admin');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPromptAdmin = e;
+            installBtnAdmin.style.display = 'block';
+        });
+
+        installBtnAdmin.addEventListener('click', async () => {
+            if (deferredPromptAdmin) {
+                deferredPromptAdmin.prompt();
+                const { outcome } = await deferredPromptAdmin.userChoice;
+                if (outcome === 'accepted') {
+                    installBtnAdmin.style.display = 'none';
+                }
+                deferredPromptAdmin = null;
+            }
+        });
+    </script>
+</body>
+</html>

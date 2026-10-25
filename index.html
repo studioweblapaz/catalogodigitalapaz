@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menú Digital - Catálogo</title>
+    
+    <!-- PWA Estática apuntando a tu logo subido en GitHub -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0047AB">
+    <link rel="icon" href="./logo.png" id="dynamic-favicon">
+    <link rel="apple-touch-icon" href="./logo.png" id="dynamic-apple-icon">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Firebase al principio para que esté disponible para todo -->
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+
+    <style>
+        :root {
+            --primary-color: #0047AB;
+            --secondary-color: #2c3e50;
+            --background-color: #f8f9fa;
+            --card-background: #ffffff;
+            --text-color: #333333;
+            --text-light: #666666;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Poppins', sans-serif; background-color: var(--background-color); color: var(--text-color); line-height: 1.6; padding-bottom: 50px; }
+        .header { background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)); color: white; text-align: center; padding: 2rem 1rem; }
+        .logo { font-size: 3rem; margin-bottom: 0.5rem; min-height: 100px; display: flex; align-items: center; justify-content: center; }
+        .logo img { max-width: 100px; max-height: 100px; border-radius: 50%; background: white; padding: 5px; }
+        .restaurant-name { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .tagline { font-size: 1rem; opacity: 0.9; }
+        .categories-nav { display: flex; overflow-x: auto; gap: 0.5rem; padding: 1rem; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
+        .category-btn { padding: 0.5rem 1rem; border: 2px solid var(--primary-color); background: white; color: var(--primary-color); border-radius: 20px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s; font-family: 'Poppins', sans-serif; }
+        .category-btn.active, .category-btn:hover { background: var(--primary-color); color: white; }
+        .menu-container { padding: 1rem; max-width: 1200px; margin: 0 auto; }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1.5rem; }
+        .menu-item { background: var(--card-background); border-radius: 15px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); transition: transform 0.3s; position: relative; }
+        .menu-item:hover { transform: translateY(-5px); }
+        .menu-item.unavailable { opacity: 0.6; }
+        .menu-item.unavailable .menu-item-image { filter: grayscale(100%); }
+        
+        /* Vista general - Imagen optimizada */
+        .menu-item-image { 
+            width: 100%; 
+            height: 220px;
+            object-fit: cover; 
+            object-position: center top;
+            cursor: pointer; 
+            transition: transform 0.2s; 
+        }
+        .menu-item-image:hover { transform: scale(1.03); }
+        
+        .menu-item-content { padding: 1rem; }
+        .menu-item-category { font-size: 0.75rem; color: var(--primary-color); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; }
+        .menu-item-name { font-size: 1.25rem; font-weight: 700; margin: 0.5rem 0; color: var(--secondary-color); }
+        .menu-item-description { font-size: 0.9rem; color: var(--text-light); margin-bottom: 1rem; }
+        .menu-item-footer { display: flex; justify-content: space-between; align-items: center; }
+        .menu-item-price { font-size: 1.5rem; font-weight: 700; color: var(--primary-color); }
+        
+        .footer { background: var(--secondary-color); color: white; text-align: center; padding: 2rem 1rem; margin-top: 2rem; }
+        .agotado-badge { position: absolute; top: 10px; right: 10px; background: #e74c3c; color: white; padding: 0.3rem 0.8rem; border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; z-index: 10; }
+        .loading-message { text-align: center; padding: 3rem; color: #666; font-size: 1.1rem; }
+        
+        /* ESTILOS DEL MODAL DE PRODUCTO (Solo informativo) */
+        .product-modal { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 1rem; backdrop-filter: blur(5px); }
+        .product-modal.show { display: flex; }
+        .product-modal-content { background: white; border-radius: 15px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative; animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(50px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-close-btn { position: absolute; top: 15px; right: 15px; background: rgba(0,0,0,0.6); color: white; border: none; width: 35px; height: 35px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; z-index: 10; display: flex; align-items: center; justify-content: center; }
+        .modal-image { width: 100%; height: 300px; object-fit: cover; border-radius: 15px 15px 0 0; }
+        .modal-body { padding: 1.5rem; }
+        .modal-title { font-size: 1.5rem; font-weight: 700; color: var(--secondary-color); margin-bottom: 0.5rem; }
+        .modal-price { font-size: 1.8rem; font-weight: 700; color: var(--primary-color); margin-bottom: 1rem; }
+        .modal-detailed-desc { font-size: 1rem; color: var(--text-light); line-height: 1.6; margin-bottom: 1.5rem; white-space: pre-line; }
+        .modal-info-text { font-size: 0.9rem; color: #666; text-align: center; font-style: italic; }
+
+        /* MEDIA QUERIES */
+        @media (max-width: 768px) { 
+            .menu-grid { grid-template-columns: 1fr; }
+            
+            /* AJUSTE SOLO PARA EL POPUP EN CELULAR */
+            .modal-image {
+                height: auto;
+                max-height: 60vh;
+                object-fit: contain;
+                background-color: #f8f9fa;
+                border-radius: 15px 15px 0 0;
+            }
+            
+            .product-modal-content {
+                max-height: 95vh;
+                margin: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo" id="restaurant-logo"></div>
+        <h1 class="restaurant-name" id="restaurant-name">Cargando...</h1>
+        <p class="tagline" id="restaurant-tagline">Bienvenido a nuestra Tienda Digital</p>
+    </header>
+
+    <nav class="categories-nav" id="categories-nav">
+        <button class="category-btn active" onclick="filterCategory('todos')">Todos</button>
+    </nav>
+
+    <main class="menu-container">
+        <div id="loading" class="loading-message">Cargando catálogo...</div>
+        <div id="menu-grid" class="menu-grid"></div>
+    </main>
+
+    <footer class="footer">
+        <p id="footer-address">📍 Dirección</p>
+        <p id="footer-hours">🕐 Horario de atención</p>
+        <p id="footer-phone">📞 Teléfono de contacto</p>
+        <p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.8;">Para realizar pedidos, contáctanos directamente por WhatsApp.</p>
+    </footer>
+
+    <!-- Modal de Detalle del Producto (Solo informativo) -->
+    <div id="product-modal" class="product-modal" onclick="closeProductModal(event)">
+        <div class="product-modal-content">
+            <button class="modal-close-btn" onclick="closeProductModal()">✕</button>
+            <img id="modal-img" src="" alt="" class="modal-image">
+            <div class="modal-body">
+                <h2 id="modal-title" class="modal-title"></h2>
+                <div id="modal-price" class="modal-price"></div>
+                <p id="modal-detailed-desc" class="modal-detailed-desc"></p>
+                <p class="modal-info-text">💡 Para ordenar este producto, envíanos un mensaje por WhatsApp.</p>
+            </div>
+        </div>
+    </div>
+
+    <button id="install-btn" style="display: none; position: fixed; bottom: 20px; right: 20px; background: #0047AB; color: white; border: none; padding: 1rem 1.5rem; border-radius: 50px; font-weight: 700; font-size: 1rem; box-shadow: 0 4px 15px rgba(0,0,0,0.2); cursor: pointer; z-index: 9999; font-family: 'Poppins', sans-serif;">
+        📲 Instalar App
+    </button>
+
+    <!-- Botón Flotante de Soporte WhatsApp -->
+    <a id="whatsapp-support-btn" href="#" target="_blank" style="display: none; position: fixed; bottom: 20px; left: 20px; background: #25d366; color: white; width: 60px; height: 60px; border-radius: 50%; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 998; align-items: center; justify-content: center; text-decoration: none; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="white">
+            <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946.003-6.556 5.338-11.891 11.893-11.891 3.181.001 6.167 1.24 8.413 3.488 2.245 2.248 3.481 5.236 3.48 8.414-.003 6.557-5.338 11.892-11.893 11.892-1.99-.001-3.951-.5-5.688-1.448l-6.305 1.654zm6.597-3.807c1.676.995 3.276 1.591 5.392 1.592 5.448 0 9.886-4.434 9.889-9.885.002-5.462-4.415-9.89-9.881-9.892-5.452 0-9.887 4.434-9.889 9.884-.001 2.225.651 3.891 1.746 5.634l-.999 3.648 3.742-.981zm11.387-5.464c-.074-.124-.272-.198-.57-.347-.297-.149-1.758-.868-2.031-.967-.272-.099-.47-.149-.669.149-.198.297-.768.967-.941 1.165-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.521.151-.172.2-.296.3-.495.099-.198.05-.372-.025-.521-.075-.148-.669-1.611-.916-2.206-.242-.579-.487-.501-.669-.51l-.57-.01c-.198 0-.52.074-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.263.489 1.694.626.712.226 1.36.194 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.695.248-1.29.173-1.414z"/>
+        </svg>
+    </a>
+
+    <script>
+        // 1. INICIALIZAR FIREBASE
+        const firebaseConfig = {
+            apiKey: "AIzaSyAAgryOgzuaKQw8s2APP4ezc4k6igHRUmM",
+            authDomain: "tienda-digital-32a30.firebaseapp.com",
+            projectId: "tienda-digital-32a30",
+            storageBucket: "tienda-digital-32a30.firebasestorage.app",
+            messagingSenderId: "989141190509",
+            appId: "1:989141190509:web:08dcb840d3c5ed79f47c64"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        const RESTAURANT_NAME = "Tienda Digital";
+        let menuData = [];
+        let currentCategory = 'todos';
+
+        // 2. CARGAR CONFIGURACIÓN
+        db.collection('config').doc('tema').onSnapshot((doc) => {
+            if (doc.exists) {
+                const config = doc.data();
+                const root = document.documentElement;
+                
+                if (config.primaryColor) root.style.setProperty('--primary-color', config.primaryColor);
+                if (config.secondaryColor) root.style.setProperty('--secondary-color', config.secondaryColor);
+                if (config.backgroundColor) root.style.setProperty('--background-color', config.backgroundColor);
+                if (config.primaryColor) document.querySelector('meta[name="theme-color"]').content = config.primaryColor;
+                
+                if (config.restaurantName) document.getElementById('restaurant-name').textContent = config.restaurantName;
+                if (config.tagline) document.getElementById('restaurant-tagline').textContent = config.tagline;
+                
+                const logoElement = document.getElementById('restaurant-logo');
+                if (config.logo) {
+                    logoElement.innerHTML = `<img src="${config.logo}" alt="Logo">`;
+                    document.getElementById('dynamic-favicon').href = config.logo;
+                    document.getElementById('dynamic-apple-icon').href = config.logo;
+                } else if (config.emoji) {
+                    logoElement.textContent = config.emoji;
+                }
+                
+                if (config.address) document.getElementById('footer-address').textContent = '📍 ' + config.address;
+                if (config.hours) document.getElementById('footer-hours').textContent = '🕐 ' + config.hours;
+                if (config.phone) document.getElementById('footer-phone').textContent = '📞 ' + config.phone;
+                
+                const whatsappBtn = document.getElementById('whatsapp-support-btn');
+                if (config.phone) {
+                    const cleanPhone = config.phone.replace(/\D/g, ''); 
+                    const message = encodeURIComponent("Hola, me interesa hacer un pedido viendo su menú digital.");
+                    whatsappBtn.href = `https://wa.me/${cleanPhone}?text=${message}`;
+                    whatsappBtn.style.display = 'flex';
+                } else {
+                    whatsappBtn.style.display = 'none';
+                }
+            }
+        });
+
+        // 3. CARGAR PRODUCTOS
+        db.collection('productos')
+            .where('restaurant', '==', RESTAURANT_NAME)
+            .onSnapshot((snapshot) => {
+                menuData = [];
+                const categories = new Set(['todos']);
+                
+                snapshot.forEach((doc) => {
+                    const product = { id: doc.id, ...doc.data() };
+                    menuData.push(product);
+                    if (product.category) categories.add(product.category);
+                });
+
+                renderCategories(Array.from(categories));
+                document.getElementById('loading').style.display = 'none';
+                renderMenu();
+            });
+
+        function renderCategories(categories) {
+            const nav = document.getElementById('categories-nav');
+            nav.innerHTML = categories.map(cat => 
+                `<button class="category-btn ${cat === currentCategory ? 'active' : ''}" onclick="filterCategory('${cat}')">${cat.charAt(0).toUpperCase() + cat.slice(1)}</button>`
+            ).join('');
+        }
+
+        function filterCategory(category) {
+            currentCategory = category;
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.textContent.toLowerCase() === category || (category === 'todos' && btn.textContent.toLowerCase() === 'todos'));
+            });
+            renderMenu();
+        }
+
+        function renderMenu() {
+            const menuGrid = document.getElementById('menu-grid');
+            menuGrid.innerHTML = '';
+            
+            const filteredItems = currentCategory === 'todos' 
+                ? menuData 
+                : menuData.filter(item => item.category === currentCategory);
+            
+            filteredItems.forEach(item => {
+                const isUnavailable = !item.available;
+                
+                const menuItem = document.createElement('div');
+                menuItem.className = `menu-item ${isUnavailable ? 'unavailable' : ''}`;
+                menuItem.innerHTML = `
+                    ${isUnavailable ? '<div class="agotado-badge">AGOTADO</div>' : ''}
+                    <img src="${item.image}" alt="${item.name}" class="menu-item-image" onclick="openProductModal('${item.id}')" onerror="this.src='https://via.placeholder.com/400x300?text=Sin+Imagen'">
+                    <div class="menu-item-content">
+                        <span class="menu-item-category">${item.category}</span>
+                        <h3 class="menu-item-name">${item.name}</h3>
+                        <p class="menu-item-description">${item.description}</p>
+                        <div class="menu-item-footer">
+                            <span class="menu-item-price">$${item.price}</span>
+                            ${isUnavailable ? '<span style="color: #e74c3c; font-weight: 600; font-size: 0.9rem;">No disponible</span>' : ''}
+                        </div>
+                    </div>
+                `;
+                menuGrid.appendChild(menuItem);
+            });
+        }
+
+        // --- FUNCIONES DEL MODAL DE PRODUCTO (Solo informativo) ---
+        function openProductModal(id) {
+            const item = menuData.find(p => p.id === id);
+            if (!item) return;
+            
+            document.getElementById('modal-img').src = item.image;
+            document.getElementById('modal-title').textContent = item.name;
+            document.getElementById('modal-price').textContent = '$' + item.price;
+            
+            const detailedDesc = item.detailedDescription || item.description || "Sin descripción detallada disponible.";
+            document.getElementById('modal-detailed-desc').textContent = detailedDesc;
+            
+            document.getElementById('product-modal').classList.add('show');
+        }
+
+        function closeProductModal(event) {
+            if (event && event.target.closest('.product-modal-content')) return;
+            document.getElementById('product-modal').classList.remove('show');
+        }
+
+        // 4. SERVICE WORKER
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => { navigator.serviceWorker.register('./sw.js'); });
+        }
+
+        // 5. BOTÓN DE INSTALACIÓN
+        let deferredPrompt;
+        const installBtn = document.getElementById('install-btn');
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            installBtn.style.display = 'block';
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    installBtn.style.display = 'none';
+                }
+                deferredPrompt = null;
+            }
+        });
+    </script>
+</body>
+</html>
