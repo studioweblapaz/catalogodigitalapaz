@@ -1,5 +1,5 @@
 {
-  "name": "Panel Admin - Tienda Digital",
+  "name": "Panel Admin - Catálogo Digital",
   "short_name": "Panel Admin",
   "description": "Panel de administración del catálogo",
   "start_url": "./admin.html",
