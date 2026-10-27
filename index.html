@@ -31,6 +31,11 @@
         .logo img { max-width: 100px; max-height: 100px; border-radius: 50%; background: white; padding: 5px; }
         .restaurant-name { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
         .tagline { font-size: 1rem; opacity: 0.9; }
+        
+        /* NUEVO: Banner de portada para móvil */
+        .mobile-banner { display: none; width: 100%; overflow: hidden; }
+        .mobile-banner img { width: 100%; height: auto; display: block; }
+        
         .categories-nav { display: flex; overflow-x: auto; gap: 0.5rem; padding: 1rem; background: white; box-shadow: 0 2px 10px rgba(0,0,0,0.1); position: sticky; top: 0; z-index: 100; }
         .category-btn { padding: 0.5rem 1rem; border: 2px solid var(--primary-color); background: white; color: var(--primary-color); border-radius: 20px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.3s; font-family: 'Poppins', sans-serif; }
         .category-btn.active, .category-btn:hover { background: var(--primary-color); color: white; }
@@ -74,7 +79,9 @@
         .modal-detailed-desc { font-size: 1rem; color: var(--text-light); line-height: 1.6; margin-bottom: 1.5rem; white-space: pre-line; }
         .modal-info-text { font-size: 0.9rem; color: #666; text-align: center; font-style: italic; }
 
+        /* MEDIA QUERIES - Mostrar banner solo en móvil */
         @media (max-width: 768px) { 
+            .mobile-banner { display: block; }
             .menu-grid { grid-template-columns: 1fr; }
             .modal-image {
                 height: auto;
@@ -109,6 +116,11 @@
         <p class="tagline" id="restaurant-tagline">Bienvenido a nuestra Tienda Digital</p>
     </header>
 
+    <!-- NUEVO: Banner de portada para móvil -->
+    <div class="mobile-banner" id="mobile-banner">
+        <img id="banner-image" src="" alt="Banner promocional">
+    </div>
+
     <nav class="categories-nav" id="categories-nav">
         <button class="category-btn active" onclick="filterCategory('todos')">Todos</button>
     </nav>
@@ -119,7 +131,7 @@
     </main>
 
     <footer class="footer">
-        <p id="footer-address">📍 Dirección</p>
+        <p id="footer-address"> Dirección</p>
         <p id="footer-hours"> Horario de atención</p>
         <p id="footer-phone">📞 Teléfono de contacto</p>
         <p style="margin-top: 1rem; font-size: 0.9rem; opacity: 0.8;">Para realizar pedidos, contáctanos directamente por WhatsApp.</p>
@@ -206,7 +218,16 @@
                     logoElement.textContent = config.emoji;
                 }
                 
-                if (config.address) document.getElementById('footer-address').textContent = '📍 ' + config.address;
+                // NUEVO: Cargar imagen de banner para móvil
+                const bannerImage = document.getElementById('banner-image');
+                if (config.mobileBanner) {
+                    bannerImage.src = config.mobileBanner;
+                    bannerImage.style.display = 'block';
+                } else {
+                    bannerImage.style.display = 'none';
+                }
+                
+                if (config.address) document.getElementById('footer-address').textContent = ' ' + config.address;
                 if (config.hours) document.getElementById('footer-hours').textContent = '🕐 ' + config.hours;
                 if (config.phone) document.getElementById('footer-phone').textContent = '📞 ' + config.phone;
                 
