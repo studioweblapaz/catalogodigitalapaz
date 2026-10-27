@@ -12,7 +12,7 @@
         .header h1 { font-size: 1.3rem; margin-bottom: 1rem; }
         .tabs { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
         .tab-btn { flex: 1; min-width: 100px; padding: 0.8rem; border: none; background: white; color: #2c3e50; border-radius: 8px; font-weight: 600; cursor: pointer; font-family: 'Poppins', sans-serif; }
-        .tab-btn.active { background: #0047AB; color: white; } /* Ajustado al color principal de tu catálogo */
+        .tab-btn.active { background: #0047AB; color: white; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         
@@ -76,7 +76,7 @@
             </div>
         </div>
 
-        <!-- TAB PRODUCTOS (Ahora es la pestaña por defecto) -->
+        <!-- TAB PRODUCTOS -->
         <div id="tab-productos" class="tab-content active">
             <div style="background: white; padding: 1.5rem; border-radius: 10px; margin-bottom: 1.5rem; max-width: 800px; margin-left: auto; margin-right: auto;">
                 <h3 style="margin-bottom: 1rem;">Agregar / Editar Producto</h3>
@@ -126,6 +126,16 @@
         <div id="tab-config" class="tab-content">
             <div style="background: white; padding: 1.5rem; border-radius: 10px; max-width: 800px; margin: 0 auto;">
                 <h3 style="margin-bottom: 1rem;">Apariencia de la Tienda</h3>
+                
+                <!-- NUEVO: Campo para Banner de Móvil -->
+                <div class="form-group">
+                    <label> Imagen de Portada (Solo se ve en celular)</label>
+                    <input type="file" id="cfg-banner-file" accept="image/*">
+                    <img id="cfg-banner-preview" style="max-width: 300px; margin-top: 0.5rem; border-radius: 8px; display: none; background: #eee; padding: 5px;">
+                    <input type="hidden" id="cfg-banner-url">
+                    <p style="font-size: 0.8rem; color: #666; margin-top: 0.3rem;">Recomendado: Imagen horizontal 1200x400px para banner promocional</p>
+                </div>
+                
                 <div class="form-group">
                     <label>Logo de la Tienda (imagen)</label>
                     <input type="file" id="cfg-logo-file" accept="image/*">
@@ -243,6 +253,13 @@
                         document.getElementById('cfg-logo-preview').src = data.logo;
                         document.getElementById('cfg-logo-preview').style.display = 'block';
                     }
+                    
+                    // NUEVO: Cargar banner
+                    document.getElementById('cfg-banner-url').value = data.mobileBanner || '';
+                    if (data.mobileBanner) {
+                        document.getElementById('cfg-banner-preview').src = data.mobileBanner;
+                        document.getElementById('cfg-banner-preview').style.display = 'block';
+                    }
                 }
             });
         }
@@ -258,17 +275,39 @@
                 reader.readAsDataURL(file);
             }
         });
+        
+        // NUEVO: Event listener para el banner
+        document.getElementById('cfg-banner-file').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('cfg-banner-preview').src = e.target.result;
+                    document.getElementById('cfg-banner-preview').style.display = 'block';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
 
         async function saveConfig() {
             const btn = event.target;
             btn.textContent = 'Guardando...';
             btn.disabled = true;
             const fileInput = document.getElementById('cfg-logo-file');
+            const bannerInput = document.getElementById('cfg-banner-file'); // NUEVO
             let logoUrl = document.getElementById('cfg-logo-url').value;
+            let bannerUrl = document.getElementById('cfg-banner-url').value; // NUEVO
+            
             try {
                 if (fileInput.files.length > 0) {
                     logoUrl = await uploadToCloudinary(fileInput.files[0]);
                 }
+                
+                // NUEVO: Subir banner si hay archivo nuevo
+                if (bannerInput.files.length > 0) {
+                    bannerUrl = await uploadToCloudinary(bannerInput.files[0]);
+                }
+                
                 await db.collection('config').doc('tema').set({
                     restaurantName: document.getElementById('cfg-name').value,
                     tagline: document.getElementById('cfg-tagline').value,
@@ -279,7 +318,8 @@
                     address: document.getElementById('cfg-address').value,
                     hours: document.getElementById('cfg-hours').value,
                     phone: document.getElementById('cfg-phone').value,
-                    logo: logoUrl
+                    logo: logoUrl,
+                    mobileBanner: bannerUrl // NUEVO
                 }, { merge: true });
                 btn.textContent = '💾 Guardar Toda la Configuración';
                 btn.disabled = false;
